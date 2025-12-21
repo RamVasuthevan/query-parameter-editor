@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Query Parameter Editor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        td input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        td input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+            padding: 4px 10px;
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .btn-remove:hover {
+            background: #c82333;
+        }
+
+        .btn-add {
+            background: #28a745;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .btn-add:hover {
+            background: #218838;
+        }
+
+        .output-group {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            display: flex;
+            align-items: start;
+            gap: 15px;
+        }
+
+        .output-group.hidden {
+            display: none;
+        }
+
+        .output-content {
+            flex: 1;
+        }
+
+        .output-url {
+            font-family: monospace;
+            word-break: break-all;
+            color: #007bff;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .btn-copy {
+            background: #007bff;
+            color: white;
+            padding: 8px 16px;
+            white-space: nowrap;
+        }
+
+        .btn-copy:hover {
+            background: #0056b3;
+        }
+
+        .btn-copy.copied {
+            background: #28a745;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .output-url a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .output-url a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>URL Query Parameter Editor</h1>
+
+        <div class="input-group">
+            <label for="urlInput">Paste URL:</label>
+            <input type="text" id="urlInput" placeholder="http://example.com/api/search?q=hello&limit=10">
+        </div>
+
+        <div class="input-group">
+            <label for="baseUrlInput">Base URL:</label>
+            <input type="text" id="baseUrlInput" placeholder="http://example.com/api/search">
+        </div>
+
+        <button class="btn-add" id="addParam">+ Add Parameter</button>
+
+        <table id="paramsTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th style="width: 35%;">Key</th>
+                    <th style="width: 50%;">Value</th>
+                    <th style="width: 15%;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="paramsBody">
+            </tbody>
+        </table>
+
+        <div class="empty-state" id="emptyState">
+            Paste a URL above to start editing query parameters
+        </div>
+
+        <div class="output-group hidden" id="outputGroup">
+            <div class="output-content">
+                <label>Updated URL:</label>
+                <div class="output-url" id="outputUrl"></div>
+            </div>
+            <button class="btn-copy" id="copyBtn">Copy</button>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const paramsBody = document.getElementById('paramsBody');
+        const paramsTable = document.getElementById('paramsTable');
+        const emptyState = document.getElementById('emptyState');
+        const outputUrl = document.getElementById('outputUrl');
+        const outputGroup = document.getElementById('outputGroup');
+        const baseUrlInput = document.getElementById('baseUrlInput');
+        const addParamBtn = document.getElementById('addParam');
+        const copyBtn = document.getElementById('copyBtn');
+
+        let params = [];
+        let currentUrl = '';
+
+        urlInput.addEventListener('input', parseUrl);
+        baseUrlInput.addEventListener('input', updateOutput);
+        addParamBtn.addEventListener('click', () => addParam('', ''));
+        copyBtn.addEventListener('click', copyToClipboard);
+
+        function parseUrl() {
+            const input = urlInput.value.trim();
+
+            if (!input) {
+                params = [];
+                baseUrlInput.value = '';
+                render();
+                return;
+            }
+
+            try {
+                const url = new URL(input);
+                baseUrlInput.value = `${url.origin}${url.pathname}`;
+
+                params = [];
+                for (const [key, value] of url.searchParams) {
+                    params.push({ key, value });
+                }
+
+                render();
+            } catch (e) {
+                // Invalid URL, ignore
+            }
+        }
+
+        function addParam(key = '', value = '') {
+            params.push({ key, value });
+            render();
+        }
+
+        function removeParam(index) {
+            params.splice(index, 1);
+            render();
+        }
+
+        function updateParam(index, field, value) {
+            params[index][field] = value;
+            updateOutput();
+        }
+
+        function render() {
+            if (params.length === 0) {
+                paramsTable.style.display = 'none';
+                emptyState.style.display = 'block';
+            } else {
+                paramsTable.style.display = 'table';
+                emptyState.style.display = 'none';
+            }
+
+            paramsBody.innerHTML = '';
+
+            params.forEach((param, index) => {
+                const row = document.createElement('tr');
+
+                row.innerHTML = `
+                    <td>
+                        <input type="text"
+                               value="${escapeHtml(param.key)}"
+                               placeholder="key"
+                               data-index="${index}"
+                               data-field="key">
+                    </td>
+                    <td>
+                        <input type="text"
+                               value="${escapeHtml(param.value)}"
+                               placeholder="value"
+                               data-index="${index}"
+                               data-field="value">
+                    </td>
+                    <td>
+                        <button class="btn-remove" data-index="${index}">×</button>
+                    </td>
+                `;
+
+                paramsBody.appendChild(row);
+            });
+
+            // Add event listeners
+            paramsBody.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    const field = e.target.dataset.field;
+                    updateParam(index, field, e.target.value);
+                });
+            });
+
+            paramsBody.querySelectorAll('.btn-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    removeParam(index);
+                });
+            });
+
+            updateOutput();
+        }
+
+        function updateOutput() {
+            const baseUrl = baseUrlInput.value.trim();
+
+            if (!baseUrl) {
+                outputGroup.classList.add('hidden');
+                currentUrl = '';
+                return;
+            }
+
+            try {
+                const url = new URL(baseUrl);
+
+                params.forEach(param => {
+                    if (param.key) {
+                        url.searchParams.append(param.key, param.value);
+                    }
+                });
+
+                currentUrl = url.toString();
+                outputUrl.innerHTML = `<a href="${escapeHtml(currentUrl)}" target="_blank">${escapeHtml(currentUrl)}</a>`;
+                outputGroup.classList.remove('hidden');
+            } catch (e) {
+                outputGroup.classList.add('hidden');
+                currentUrl = '';
+            }
+        }
+
+        async function copyToClipboard() {
+            if (!currentUrl) return;
+
+            try {
+                await navigator.clipboard.writeText(currentUrl);
+                copyBtn.textContent = 'Copied!';
+                copyBtn.classList.add('copied');
+
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch (e) {
+                console.error('Failed to copy:', e);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize
+        parseUrl();
+    </script>
+</body>
+</html>
