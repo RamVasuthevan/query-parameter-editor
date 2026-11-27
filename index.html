@@ -153,8 +153,25 @@
         .btn-copy {
             background: #007bff;
             color: white;
-            padding: 8px 16px;
-            white-space: nowrap;
+            padding: 8px 10px;
+            line-height: 0;
+        }
+
+        .btn-copy svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-copy .icon-done,
+        .btn-copy .icon-failed,
+        .btn-copy.copied .icon-copy,
+        .btn-copy.failed .icon-copy {
+            display: none;
+        }
+
+        .btn-copy.copied .icon-done,
+        .btn-copy.failed .icon-failed {
+            display: inline;
         }
 
         .btn-copy:hover {
@@ -221,8 +238,8 @@
         <h1>URL Query Parameter Editor</h1>
 
         <div class="input-group">
-            <label for="urlInput">Paste URL:</label>
-            <input type="text" id="urlInput" placeholder="http://example.com/api/search?q=hello&limit=10">
+            <label for="urlInput">URL:</label>
+            <input type="text" id="urlInput" placeholder="Paste a URL to edit its parameters…">
             <div class="error" id="urlError"></div>
         </div>
 
@@ -260,7 +277,11 @@
                 <label>Updated URL:</label>
                 <div class="output-url" id="outputUrl"></div>
             </div>
-            <button class="btn-copy" id="copyBtn">Copy</button>
+            <button class="btn-copy" id="copyBtn" title="Copy" aria-label="Copy">
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <svg class="icon-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                <svg class="icon-failed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
         </div>
     </div>
 
@@ -518,11 +539,16 @@
             }
         }
 
+        function setCopyLabel(text) {
+            copyBtn.title = text;
+            copyBtn.setAttribute('aria-label', text);
+        }
+
         function flashCopyButton(text, className) {
-            copyBtn.textContent = text;
+            setCopyLabel(text);
             copyBtn.classList.add(className);
             setTimeout(() => {
-                copyBtn.textContent = 'Copy';
+                setCopyLabel('Copy');
                 copyBtn.classList.remove(className);
             }, 2000);
         }
