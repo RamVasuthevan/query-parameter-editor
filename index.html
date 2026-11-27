@@ -176,6 +176,17 @@
             text-decoration: none;
         }
 
+        .param-toggle {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        tr.disabled td input[type="text"] {
+            opacity: 0.45;
+            text-decoration: line-through;
+        }
+
         .output-url a:hover {
             text-decoration: underline;
         }
@@ -230,9 +241,10 @@
         <table id="paramsTable" style="display: none;">
             <thead>
                 <tr>
-                    <th style="width: 35%;">Key</th>
+                    <th style="width: 6%;" title="Include in URL">On</th>
+                    <th style="width: 32%;">Key</th>
                     <th style="width: 50%;">Value</th>
-                    <th style="width: 15%;">Action</th>
+                    <th style="width: 12%;">Remove</th>
                 </tr>
             </thead>
             <tbody id="paramsBody">
@@ -401,6 +413,21 @@
 
             params.forEach((param, index) => {
                 const row = document.createElement('tr');
+                row.classList.toggle('disabled', !!param.disabled);
+
+                const toggleCell = document.createElement('td');
+                const toggle = document.createElement('input');
+                toggle.type = 'checkbox';
+                toggle.className = 'param-toggle';
+                toggle.checked = !param.disabled;
+                toggle.title = 'Include in URL';
+                toggle.setAttribute('aria-label', 'Include in URL');
+                toggle.addEventListener('change', () => {
+                    param.disabled = !toggle.checked;
+                    row.classList.toggle('disabled', param.disabled);
+                    updateOutput();
+                });
+                toggleCell.appendChild(toggle);
 
                 const keyCell = document.createElement('td');
                 const keyInput = createInput(index, 'key', param.key);
@@ -418,7 +445,7 @@
                 removeBtn.addEventListener('click', () => removeParam(index));
                 actionCell.appendChild(removeBtn);
 
-                row.append(keyCell, valueCell, actionCell);
+                row.append(toggleCell, keyCell, valueCell, actionCell);
                 paramsBody.appendChild(row);
             });
 
@@ -454,7 +481,7 @@
             let base = url.href;
             if (url.search === '' && base.endsWith('?')) base = base.slice(0, -1);
 
-            const query = params.filter(p => !isBlankNewParam(p)).map(serializeParam).join('&');
+            const query = params.filter(p => !p.disabled && !isBlankNewParam(p)).map(serializeParam).join('&');
 
             if (hashModeInput.checked) {
                 const fragment = hash.slice(1);
