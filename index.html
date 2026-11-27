@@ -182,12 +182,6 @@
             background: #28a745;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-
         .output-url a {
             color: #007bff;
             text-decoration: none;
@@ -222,14 +216,53 @@
             background: #dc3545;
         }
 
-        .checkbox-label {
+        .param-section {
+            margin-bottom: 24px;
+        }
+
+        .section-header {
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin: 8px 0 0;
-            font-weight: normal;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .section-header h2 {
+            font-size: 16px;
+            color: #333;
+        }
+
+        .section-header h2 code {
+            background: #eef1f4;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .section-header .btn-add {
+            margin-bottom: 0;
+            padding: 6px 12px;
             font-size: 13px;
-            cursor: pointer;
+        }
+
+        .section-empty {
+            color: #999;
+            font-size: 13px;
+            padding: 4px 0 8px;
+        }
+
+        .fragment-prefix {
+            margin-bottom: 12px;
+        }
+
+        .fragment-prefix label {
+            font-size: 13px;
+            font-weight: normal;
+            margin-bottom: 6px;
+        }
+
+        .params-table {
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -245,32 +278,51 @@
 
         <div class="input-group">
             <label for="baseUrlInput">Base URL:</label>
-            <input type="text" id="baseUrlInput" placeholder="http://example.com/api/search">
+            <input type="text" id="baseUrlInput" placeholder="https://example.com/api/search">
             <div class="error" id="baseUrlError"></div>
-            <label class="checkbox-label">
-                <input type="checkbox" id="hashMode">
-                Edit parameters after # instead of ?
-            </label>
         </div>
 
-        <button class="btn-add" id="addParam">+ Add Parameter</button>
+        <section class="param-section" id="querySection">
+            <div class="section-header">
+                <h2>Query parameters <code>?</code></h2>
+                <button class="btn-add">+ Add</button>
+            </div>
+            <table class="params-table" hidden>
+                <thead>
+                    <tr>
+                        <th style="width: 6%;" title="Include in URL">On</th>
+                        <th style="width: 32%;">Key</th>
+                        <th style="width: 50%;">Value</th>
+                        <th style="width: 12%;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p class="section-empty">No query parameters</p>
+        </section>
 
-        <table id="paramsTable" style="display: none;">
-            <thead>
-                <tr>
-                    <th style="width: 6%;" title="Include in URL">On</th>
-                    <th style="width: 32%;">Key</th>
-                    <th style="width: 50%;">Value</th>
-                    <th style="width: 12%;">Remove</th>
-                </tr>
-            </thead>
-            <tbody id="paramsBody">
-            </tbody>
-        </table>
-
-        <div class="empty-state" id="emptyState">
-            Paste a URL above to start editing query parameters
-        </div>
+        <section class="param-section" id="hashSection">
+            <div class="section-header">
+                <h2>Fragment parameters <code>#</code></h2>
+                <button class="btn-add">+ Add</button>
+            </div>
+            <div class="fragment-prefix">
+                <label for="fragmentPrefixInput">Route or anchor before the parameters (optional):</label>
+                <input type="text" id="fragmentPrefixInput" placeholder="e.g. /jobs or section-id">
+            </div>
+            <table class="params-table" hidden>
+                <thead>
+                    <tr>
+                        <th style="width: 6%;" title="Include in URL">On</th>
+                        <th style="width: 32%;">Key</th>
+                        <th style="width: 50%;">Value</th>
+                        <th style="width: 12%;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p class="section-empty">No fragment parameters</p>
+        </section>
 
         <div class="output-group hidden" id="outputGroup">
             <div class="output-content">
@@ -286,32 +338,32 @@
     </div>
 
     <script>
-        const urlInput = document.getElementById('urlInput');
-        const paramsBody = document.getElementById('paramsBody');
-        const paramsTable = document.getElementById('paramsTable');
-        const emptyState = document.getElementById('emptyState');
-        const outputUrl = document.getElementById('outputUrl');
-        const outputGroup = document.getElementById('outputGroup');
-        const baseUrlInput = document.getElementById('baseUrlInput');
-        const addParamBtn = document.getElementById('addParam');
-        const copyBtn = document.getElementById('copyBtn');
-        const urlError = document.getElementById('urlError');
-        const baseUrlError = document.getElementById('baseUrlError');
+        const $ = id => document.getElementById(id);
+        const urlInput = $('urlInput');
+        const baseUrlInput = $('baseUrlInput');
+        const fragmentPrefixInput = $('fragmentPrefixInput');
+        const outputUrl = $('outputUrl');
+        const outputGroup = $('outputGroup');
+        const copyBtn = $('copyBtn');
+        const urlError = $('urlError');
+        const baseUrlError = $('baseUrlError');
 
-        let params = [];
+        const sections = {
+            query: { el: $('querySection'), params: [] },
+            hash: { el: $('hashSection'), params: [] },
+        };
+        let fragmentUsesQuestionMark = false;
+        let keepEmptyQueryMarker = false;
         let currentUrl = '';
-
-        const hashModeInput = document.getElementById('hashMode');
+        let copyResetTimer = null;
 
         urlInput.addEventListener('input', () => parseUrl());
-        hashModeInput.addEventListener('change', () => parseUrl({ forceHash: hashModeInput.checked }));
         baseUrlInput.addEventListener('input', () => updateOutput());
-        addParamBtn.addEventListener('click', () => {
-            addParam();
-            const inputs = paramsBody.querySelectorAll('input[data-field="key"]');
-            inputs[inputs.length - 1].focus();
-        });
+        fragmentPrefixInput.addEventListener('input', () => updateOutput());
         copyBtn.addEventListener('click', copyToClipboard);
+        for (const name of Object.keys(sections)) {
+            sections[name].el.querySelector('.btn-add').addEventListener('click', () => addParam(name));
+        }
 
         function decodeComponent(text) {
             try {
@@ -339,6 +391,17 @@
             });
         }
 
+        function splitFragment(fragment) {
+            const q = fragment.indexOf('?');
+            if (q !== -1) {
+                return { prefix: fragment.slice(0, q), params: fragment.slice(q + 1), usesQuestionMark: true };
+            }
+            if (fragment.includes('=')) {
+                return { prefix: '', params: fragment, usesQuestionMark: false };
+            }
+            return { prefix: fragment, params: '', usesQuestionMark: false };
+        }
+
         function serializeParam(p) {
             const k = p.rawKey !== null ? p.rawKey : encodeURIComponent(p.key);
             if (p.rawValue !== null && !p.hasEq) return k;
@@ -350,13 +413,26 @@
             return p.rawKey === null && p.key === '' && p.value === '';
         }
 
-        function parseUrl({ forceHash } = {}) {
+        function serializeParams(params) {
+            return params.filter(p => !p.disabled && !isBlankNewParam(p)).map(serializeParam).join('&');
+        }
+
+        function keepDisabled(oldParams, newParams) {
+            oldParams.forEach((p, i) => {
+                if (p.disabled) newParams.splice(Math.min(i, newParams.length), 0, p);
+            });
+            return newParams;
+        }
+
+        function parseUrl() {
             const input = urlInput.value.trim();
 
             if (!input) {
                 urlError.textContent = '';
-                params = [];
+                sections.query.params = [];
+                sections.hash.params = [];
                 baseUrlInput.value = '';
+                fragmentPrefixInput.value = '';
                 render({ sync: false });
                 return;
             }
@@ -370,67 +446,71 @@
             }
 
             urlError.textContent = '';
-            const fragment = url.hash.slice(1);
-            const inHash = forceHash !== undefined
-                ? forceHash
-                : url.search === '' && fragment.includes('=');
-            hashModeInput.checked = inHash;
+            const fragment = splitFragment(url.hash.slice(1));
+            const queryParams = parseQuery(url.search);
+            const hashParams = parseQuery(fragment.params);
 
-            if (inHash) {
-                const q = fragment.indexOf('?');
-                params = parseQuery(q === -1 ? fragment : fragment.slice(q + 1));
-                url.hash = q === -1 ? '' : fragment.slice(0, q + 1);
-            } else {
-                params = parseQuery(url.search);
-                url.search = '';
-            }
+            url.hash = '';
+            keepEmptyQueryMarker = url.search === '' && url.href.endsWith('?');
+            url.search = '';
+
+            const sameBase = url.href === baseUrlInput.value.trim();
+            sections.query.params = sameBase ? keepDisabled(sections.query.params, queryParams) : queryParams;
+            sections.hash.params = sameBase ? keepDisabled(sections.hash.params, hashParams) : hashParams;
+            fragmentUsesQuestionMark = fragment.usesQuestionMark;
+
             baseUrlInput.value = url.href;
+            fragmentPrefixInput.value = fragment.prefix;
             render({ sync: false });
         }
 
-        function addParam() {
-            params.push({ key: '', value: '', rawKey: null, rawValue: null, hasEq: true });
-            render();
+        function addParam(name) {
+            const section = sections[name];
+            section.params.push({ key: '', value: '', rawKey: null, rawValue: null, hasEq: true });
+            renderSection(name);
+            updateOutput();
+            const keys = section.el.querySelectorAll('input[data-field="key"]');
+            keys[keys.length - 1].focus();
         }
 
-        function removeParam(index) {
-            params.splice(index, 1);
-            render();
-            const buttons = paramsBody.querySelectorAll('.btn-remove');
-            (buttons[Math.min(index, buttons.length - 1)] || addParamBtn).focus();
+        function removeParam(name, index) {
+            const section = sections[name];
+            section.params.splice(index, 1);
+            renderSection(name);
+            updateOutput();
+            const buttons = section.el.querySelectorAll('.btn-remove');
+            (buttons[Math.min(index, buttons.length - 1)] || section.el.querySelector('.btn-add')).focus();
         }
 
-        function updateParam(index, field, value) {
-            const p = params[index];
-            p[field] = value;
+        function updateParam(param, field, value) {
+            param[field] = value;
             if (field === 'key') {
-                p.rawKey = null;
+                param.rawKey = null;
             } else {
-                p.rawValue = null;
-                p.hasEq = true;
+                param.rawValue = null;
+                param.hasEq = true;
             }
             updateOutput();
         }
 
-        function createInput(index, field, value) {
+        function createInput(param, field) {
             const input = document.createElement('input');
             input.type = 'text';
-            input.value = value;
+            input.value = param[field];
             input.placeholder = field;
-            input.addEventListener('input', () => updateParam(index, field, input.value));
+            input.dataset.field = field;
+            input.addEventListener('input', () => updateParam(param, field, input.value));
             return input;
         }
 
-        function render({ sync = true } = {}) {
-            if (params.length === 0) {
-                paramsTable.style.display = 'none';
-                emptyState.style.display = 'block';
-            } else {
-                paramsTable.style.display = 'table';
-                emptyState.style.display = 'none';
-            }
+        function renderSection(name) {
+            const { el, params } = sections[name];
+            const table = el.querySelector('table');
+            const body = table.tBodies[0];
+            table.hidden = params.length === 0;
+            el.querySelector('.section-empty').hidden = params.length > 0;
 
-            paramsBody.replaceChildren();
+            body.replaceChildren();
 
             params.forEach((param, index) => {
                 const row = document.createElement('tr');
@@ -451,39 +531,44 @@
                 toggleCell.appendChild(toggle);
 
                 const keyCell = document.createElement('td');
-                const keyInput = createInput(index, 'key', param.key);
-                keyInput.dataset.field = 'key';
-                keyCell.appendChild(keyInput);
+                keyCell.appendChild(createInput(param, 'key'));
 
                 const valueCell = document.createElement('td');
-                valueCell.appendChild(createInput(index, 'value', param.value));
+                valueCell.appendChild(createInput(param, 'value'));
 
                 const actionCell = document.createElement('td');
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'btn-remove';
                 removeBtn.textContent = '×';
                 removeBtn.setAttribute('aria-label', 'Remove parameter');
-                removeBtn.addEventListener('click', () => removeParam(index));
+                removeBtn.addEventListener('click', () => removeParam(name, index));
                 actionCell.appendChild(removeBtn);
 
                 row.append(toggleCell, keyCell, valueCell, actionCell);
-                paramsBody.appendChild(row);
+                body.appendChild(row);
             });
+        }
 
+        function render({ sync = true } = {}) {
+            renderSection('query');
+            renderSection('hash');
             updateOutput({ sync });
         }
 
-        function hideOutput() {
+        function showOutputUnavailable(message) {
+            baseUrlError.textContent = message;
             outputGroup.classList.add('hidden');
             currentUrl = '';
+            urlError.textContent = urlInput.value.trim()
+                ? 'Out of date until the Base URL below is fixed.'
+                : '';
         }
 
         function updateOutput({ sync = true } = {}) {
             const baseUrl = baseUrlInput.value.trim();
 
             if (!baseUrl) {
-                baseUrlError.textContent = '';
-                hideOutput();
+                showOutputUnavailable('');
                 return;
             }
 
@@ -491,34 +576,29 @@
             try {
                 url = new URL(baseUrl);
             } catch (e) {
-                baseUrlError.textContent = 'Not a valid absolute URL.';
-                hideOutput();
+                showOutputUnavailable('Not a valid absolute URL.');
+                return;
+            }
+            if (/[?#]/.test(baseUrl)) {
+                showOutputUnavailable('Leave out ? and # here. Use the parameter sections below.');
                 return;
             }
             baseUrlError.textContent = '';
 
-            const hash = url.hash;
-            url.hash = '';
-            let base = url.href;
-            if (url.search === '' && base.endsWith('?')) base = base.slice(0, -1);
+            const query = serializeParams(sections.query.params);
+            const hashQuery = serializeParams(sections.hash.params);
+            const prefix = fragmentPrefixInput.value.replace(/^#/, '');
 
-            const query = params.filter(p => !p.disabled && !isBlankNewParam(p)).map(serializeParam).join('&');
+            let result = url.href;
+            if (query) result += '?' + query;
+            else if (keepEmptyQueryMarker) result += '?';
 
-            if (hashModeInput.checked) {
-                const fragment = hash.slice(1);
-                if (!query) {
-                    const trimmed = fragment.replace(/\?$/, '');
-                    currentUrl = base + (trimmed ? '#' + trimmed : '');
-                } else {
-                    let joiner = '?';
-                    if (fragment === '' || /[?&]$/.test(fragment)) joiner = '';
-                    else if (/[?=]/.test(fragment)) joiner = '&';
-                    currentUrl = base + '#' + fragment + joiner + query;
-                }
-            } else {
-                const joiner = url.search ? '&' : '?';
-                currentUrl = base + (query ? joiner + query : '') + hash;
+            if (hashQuery) {
+                result += '#' + prefix + (prefix || fragmentUsesQuestionMark ? '?' : '') + hashQuery;
+            } else if (prefix) {
+                result += '#' + prefix;
             }
+            currentUrl = result;
 
             outputUrl.replaceChildren();
             if (url.protocol === 'http:' || url.protocol === 'https:') {
@@ -535,22 +615,21 @@
 
             if (sync) {
                 urlInput.value = currentUrl;
-                urlError.textContent = '';
             }
+            urlError.textContent = '';
         }
 
-        function setCopyLabel(text) {
+        function setCopyState(className, text) {
+            clearTimeout(copyResetTimer);
+            copyBtn.classList.remove('copied', 'failed');
+            if (className) copyBtn.classList.add(className);
             copyBtn.title = text;
             copyBtn.setAttribute('aria-label', text);
         }
 
         function flashCopyButton(text, className) {
-            setCopyLabel(text);
-            copyBtn.classList.add(className);
-            setTimeout(() => {
-                setCopyLabel('Copy');
-                copyBtn.classList.remove(className);
-            }, 2000);
+            setCopyState(className, text);
+            copyResetTimer = setTimeout(() => setCopyState(null, 'Copy'), 2000);
         }
 
         async function copyToClipboard() {

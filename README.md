@@ -1,11 +1,11 @@
 # URL Query Parameter Editor
 
-A single-page tool for editing a URL's query parameters as a table. Open `index.html` in a browser; there's no build step or dependencies.
+A single-page tool for editing a URL's parameters as tables. Open `index.html` in a browser; there's no build step or dependencies.
 
-1. Paste a URL. Its base (scheme, credentials, host, path and `#fragment`) and its query parameters are split out.
-2. Edit, add or remove parameters, or change the base URL. Untick a row's **On** box to leave it out of the URL without deleting it; tick it again to put it back. The URL field and the output update as you type.
+1. Paste a URL. It's split into a base URL (scheme, credentials, host and path), its query parameters (after `?`) and its fragment parameters (after `#`).
+2. Edit, add or remove parameters in either section, or change the base URL. Untick a row's **On** box to leave it out of the URL without deleting it; tick it again to put it back. The URL field and the output update as you type.
 3. Copy the result.
 
-Parameters you don't touch are kept byte-for-byte as they were in the original URL, including their order, duplicates, valueless keys like `?flag` and existing encoding. A parameter you edit is re-encoded with `encodeURIComponent`. In the editor, `+` is shown as a space.
+Single-page apps often keep their state in the fragment, e.g. `#company=Affirm&location=Toronto`. Hash-router URLs like `#/jobs?company=Affirm` work too: `/jobs` goes in the fragment section's "Route or anchor" field and `company` in its table. A plain anchor such as `#section` also lives in that field.
 
-If a URL has no `?query` but its `#fragment` contains `=` (as single-page apps often use, e.g. `#company=Affirm&location=Toronto` or `#/jobs?company=Affirm`), the fragment's parameters are edited instead. Toggle "Edit parameters after # instead of ?" to switch manually.
+Parameters you don't touch keep their order, duplicates, valueless keys like `?flag` and existing encoding. The browser's URL parser normalizes a few characters when you paste (for example a literal space becomes `%20`), so those come out in that normalized form. A parameter you edit is re-encoded with `encodeURIComponent`. In the editor, `+` is shown as a space.
