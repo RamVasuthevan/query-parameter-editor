@@ -179,6 +179,20 @@
         .output-url a:hover {
             text-decoration: underline;
         }
+
+        .error {
+            color: #dc3545;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .error:empty {
+            display: none;
+        }
+
+        .btn-copy.failed {
+            background: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -188,11 +202,13 @@
         <div class="input-group">
             <label for="urlInput">Paste URL:</label>
             <input type="text" id="urlInput" placeholder="http://example.com/api/search?q=hello&limit=10">
+            <div class="error" id="urlError"></div>
         </div>
 
         <div class="input-group">
             <label for="baseUrlInput">Base URL:</label>
             <input type="text" id="baseUrlInput" placeholder="http://example.com/api/search">
+            <div class="error" id="baseUrlError"></div>
         </div>
 
         <button class="btn-add" id="addParam">+ Add Parameter</button>
@@ -232,56 +248,118 @@
         const baseUrlInput = document.getElementById('baseUrlInput');
         const addParamBtn = document.getElementById('addParam');
         const copyBtn = document.getElementById('copyBtn');
+        const urlError = document.getElementById('urlError');
+        const baseUrlError = document.getElementById('baseUrlError');
 
         let params = [];
         let currentUrl = '';
 
         urlInput.addEventListener('input', parseUrl);
-        baseUrlInput.addEventListener('input', updateOutput);
-        addParamBtn.addEventListener('click', () => addParam('', ''));
+        baseUrlInput.addEventListener('input', () => updateOutput());
+        addParamBtn.addEventListener('click', () => {
+            addParam();
+            const inputs = paramsBody.querySelectorAll('input[data-field="key"]');
+            inputs[inputs.length - 1].focus();
+        });
         copyBtn.addEventListener('click', copyToClipboard);
+
+        function decodeComponent(text) {
+            try {
+                return decodeURIComponent(text.replace(/\+/g, ' '));
+            } catch (e) {
+                return text;
+            }
+        }
+
+        function parseQuery(search) {
+            const query = search.startsWith('?') ? search.slice(1) : search;
+            if (!query) return [];
+
+            return query.split('&').filter(part => part !== '').map(part => {
+                const eq = part.indexOf('=');
+                const rawKey = eq === -1 ? part : part.slice(0, eq);
+                const rawValue = eq === -1 ? '' : part.slice(eq + 1);
+                return {
+                    key: decodeComponent(rawKey),
+                    value: decodeComponent(rawValue),
+                    rawKey,
+                    rawValue,
+                    hasEq: eq !== -1,
+                };
+            });
+        }
+
+        function serializeParam(p) {
+            const k = p.rawKey !== null ? p.rawKey : encodeURIComponent(p.key);
+            if (p.rawValue !== null && !p.hasEq) return k;
+            const v = p.rawValue !== null ? p.rawValue : encodeURIComponent(p.value);
+            return `${k}=${v}`;
+        }
+
+        function isBlankNewParam(p) {
+            return p.rawKey === null && p.key === '' && p.value === '';
+        }
 
         function parseUrl() {
             const input = urlInput.value.trim();
 
             if (!input) {
+                urlError.textContent = '';
                 params = [];
                 baseUrlInput.value = '';
-                render();
+                render({ sync: false });
                 return;
             }
 
+            let url;
             try {
-                const url = new URL(input);
-                baseUrlInput.value = `${url.origin}${url.pathname}`;
-
-                params = [];
-                for (const [key, value] of url.searchParams) {
-                    params.push({ key, value });
-                }
-
-                render();
+                url = new URL(input);
             } catch (e) {
-                // Invalid URL, ignore
+                urlError.textContent = 'Not a valid absolute URL. Include the scheme, e.g. https://';
+                return;
             }
+
+            urlError.textContent = '';
+            params = parseQuery(url.search);
+            url.search = '';
+            baseUrlInput.value = url.href;
+            render({ sync: false });
         }
 
-        function addParam(key = '', value = '') {
-            params.push({ key, value });
+        function addParam() {
+            params.push({ key: '', value: '', rawKey: null, rawValue: null, hasEq: true });
             render();
         }
 
         function removeParam(index) {
             params.splice(index, 1);
             render();
+            const buttons = paramsBody.querySelectorAll('.btn-remove');
+            (buttons[Math.min(index, buttons.length - 1)] || addParamBtn).focus();
         }
 
         function updateParam(index, field, value) {
-            params[index][field] = value;
+            const p = params[index];
+            p[field] = value;
+            if (field === 'key') {
+                p.rawKey = null;
+            } else {
+                p.rawValue = null;
+                p.hasEq = true;
+            }
             updateOutput();
         }
 
-        function render() {
+        function createInput(index, field, value) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = value;
+            input.placeholder = field;
+            input.addEventListener('input', () => updateParam(index, field, input.value));
+            return input;
+        }
+
+        function render({ sync = true } = {}) {
             if (params.length === 0) {
                 paramsTable.style.display = 'none';
                 emptyState.style.display = 'block';
@@ -290,78 +368,93 @@
                 emptyState.style.display = 'none';
             }
 
-            paramsBody.innerHTML = '';
+            paramsBody.replaceChildren();
 
             params.forEach((param, index) => {
                 const row = document.createElement('tr');
 
-                row.innerHTML = `
-                    <td>
-                        <input type="text"
-                               value="${escapeHtml(param.key)}"
-                               placeholder="key"
-                               data-index="${index}"
-                               data-field="key">
-                    </td>
-                    <td>
-                        <input type="text"
-                               value="${escapeHtml(param.value)}"
-                               placeholder="value"
-                               data-index="${index}"
-                               data-field="value">
-                    </td>
-                    <td>
-                        <button class="btn-remove" data-index="${index}">×</button>
-                    </td>
-                `;
+                const keyCell = document.createElement('td');
+                const keyInput = createInput(index, 'key', param.key);
+                keyInput.dataset.field = 'key';
+                keyCell.appendChild(keyInput);
 
+                const valueCell = document.createElement('td');
+                valueCell.appendChild(createInput(index, 'value', param.value));
+
+                const actionCell = document.createElement('td');
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'btn-remove';
+                removeBtn.textContent = '×';
+                removeBtn.setAttribute('aria-label', 'Remove parameter');
+                removeBtn.addEventListener('click', () => removeParam(index));
+                actionCell.appendChild(removeBtn);
+
+                row.append(keyCell, valueCell, actionCell);
                 paramsBody.appendChild(row);
             });
 
-            // Add event listeners
-            paramsBody.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', (e) => {
-                    const index = parseInt(e.target.dataset.index);
-                    const field = e.target.dataset.field;
-                    updateParam(index, field, e.target.value);
-                });
-            });
-
-            paramsBody.querySelectorAll('.btn-remove').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const index = parseInt(e.target.dataset.index);
-                    removeParam(index);
-                });
-            });
-
-            updateOutput();
+            updateOutput({ sync });
         }
 
-        function updateOutput() {
+        function hideOutput() {
+            outputGroup.classList.add('hidden');
+            currentUrl = '';
+        }
+
+        function updateOutput({ sync = true } = {}) {
             const baseUrl = baseUrlInput.value.trim();
 
             if (!baseUrl) {
-                outputGroup.classList.add('hidden');
-                currentUrl = '';
+                baseUrlError.textContent = '';
+                hideOutput();
                 return;
             }
 
+            let url;
             try {
-                const url = new URL(baseUrl);
-
-                params.forEach(param => {
-                    if (param.key) {
-                        url.searchParams.append(param.key, param.value);
-                    }
-                });
-
-                currentUrl = url.toString();
-                outputUrl.innerHTML = `<a href="${escapeHtml(currentUrl)}" target="_blank">${escapeHtml(currentUrl)}</a>`;
-                outputGroup.classList.remove('hidden');
+                url = new URL(baseUrl);
             } catch (e) {
-                outputGroup.classList.add('hidden');
-                currentUrl = '';
+                baseUrlError.textContent = 'Not a valid absolute URL.';
+                hideOutput();
+                return;
             }
+            baseUrlError.textContent = '';
+
+            const hash = url.hash;
+            url.hash = '';
+            let base = url.href;
+            if (url.search === '' && base.endsWith('?')) base = base.slice(0, -1);
+
+            const query = params.filter(p => !isBlankNewParam(p)).map(serializeParam).join('&');
+            const joiner = url.search ? '&' : '?';
+            currentUrl = base + (query ? joiner + query : '') + hash;
+
+            outputUrl.replaceChildren();
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+                const link = document.createElement('a');
+                link.href = currentUrl;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = currentUrl;
+                outputUrl.appendChild(link);
+            } else {
+                outputUrl.textContent = currentUrl;
+            }
+            outputGroup.classList.remove('hidden');
+
+            if (sync) {
+                urlInput.value = currentUrl;
+                urlError.textContent = '';
+            }
+        }
+
+        function flashCopyButton(text, className) {
+            copyBtn.textContent = text;
+            copyBtn.classList.add(className);
+            setTimeout(() => {
+                copyBtn.textContent = 'Copy';
+                copyBtn.classList.remove(className);
+            }, 2000);
         }
 
         async function copyToClipboard() {
@@ -369,22 +462,11 @@
 
             try {
                 await navigator.clipboard.writeText(currentUrl);
-                copyBtn.textContent = 'Copied!';
-                copyBtn.classList.add('copied');
-
-                setTimeout(() => {
-                    copyBtn.textContent = 'Copy';
-                    copyBtn.classList.remove('copied');
-                }, 2000);
+                flashCopyButton('Copied!', 'copied');
             } catch (e) {
                 console.error('Failed to copy:', e);
+                flashCopyButton('Copy failed', 'failed');
             }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
         // Initialize
