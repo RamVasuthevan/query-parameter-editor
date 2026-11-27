@@ -153,8 +153,25 @@
         .btn-copy {
             background: #007bff;
             color: white;
-            padding: 8px 16px;
-            white-space: nowrap;
+            padding: 8px 10px;
+            line-height: 0;
+        }
+
+        .btn-copy svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-copy .icon-done,
+        .btn-copy .icon-failed,
+        .btn-copy.copied .icon-copy,
+        .btn-copy.failed .icon-copy {
+            display: none;
+        }
+
+        .btn-copy.copied .icon-done,
+        .btn-copy.failed .icon-failed {
+            display: inline;
         }
 
         .btn-copy:hover {
@@ -165,19 +182,87 @@
             background: #28a745;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-
         .output-url a {
             color: #007bff;
             text-decoration: none;
         }
 
+        .param-toggle {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        tr.disabled td input[type="text"] {
+            opacity: 0.45;
+            text-decoration: line-through;
+        }
+
         .output-url a:hover {
             text-decoration: underline;
+        }
+
+        .error {
+            color: #dc3545;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .error:empty {
+            display: none;
+        }
+
+        .btn-copy.failed {
+            background: #dc3545;
+        }
+
+        .param-section {
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .section-header h2 {
+            font-size: 16px;
+            color: #333;
+        }
+
+        .section-header h2 code {
+            background: #eef1f4;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .section-header .btn-add {
+            margin-bottom: 0;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .section-empty {
+            color: #999;
+            font-size: 13px;
+            padding: 4px 0 8px;
+        }
+
+        .fragment-prefix {
+            margin-bottom: 12px;
+        }
+
+        .fragment-prefix label {
+            font-size: 13px;
+            font-weight: normal;
+            margin-bottom: 6px;
+        }
+
+        .params-table {
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -186,182 +271,365 @@
         <h1>URL Query Parameter Editor</h1>
 
         <div class="input-group">
-            <label for="urlInput">Paste URL:</label>
-            <input type="text" id="urlInput" placeholder="http://example.com/api/search?q=hello&limit=10">
+            <label for="urlInput">URL:</label>
+            <input type="text" id="urlInput" placeholder="Paste a URL to edit its parameters…">
+            <div class="error" id="urlError"></div>
         </div>
 
         <div class="input-group">
             <label for="baseUrlInput">Base URL:</label>
-            <input type="text" id="baseUrlInput" placeholder="http://example.com/api/search">
+            <input type="text" id="baseUrlInput" placeholder="https://example.com/api/search">
+            <div class="error" id="baseUrlError"></div>
         </div>
 
-        <button class="btn-add" id="addParam">+ Add Parameter</button>
+        <section class="param-section" id="querySection">
+            <div class="section-header">
+                <h2>Query parameters <code>?</code></h2>
+                <button class="btn-add">+ Add</button>
+            </div>
+            <table class="params-table" hidden>
+                <thead>
+                    <tr>
+                        <th style="width: 6%;" title="Include in URL">On</th>
+                        <th style="width: 32%;">Key</th>
+                        <th style="width: 50%;">Value</th>
+                        <th style="width: 12%;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p class="section-empty">No query parameters</p>
+        </section>
 
-        <table id="paramsTable" style="display: none;">
-            <thead>
-                <tr>
-                    <th style="width: 35%;">Key</th>
-                    <th style="width: 50%;">Value</th>
-                    <th style="width: 15%;">Action</th>
-                </tr>
-            </thead>
-            <tbody id="paramsBody">
-            </tbody>
-        </table>
-
-        <div class="empty-state" id="emptyState">
-            Paste a URL above to start editing query parameters
-        </div>
+        <section class="param-section" id="hashSection">
+            <div class="section-header">
+                <h2>Fragment parameters <code>#</code></h2>
+                <button class="btn-add">+ Add</button>
+            </div>
+            <div class="fragment-prefix">
+                <label for="fragmentPrefixInput">Route or anchor before the parameters (optional):</label>
+                <input type="text" id="fragmentPrefixInput" placeholder="e.g. /jobs or section-id">
+            </div>
+            <table class="params-table" hidden>
+                <thead>
+                    <tr>
+                        <th style="width: 6%;" title="Include in URL">On</th>
+                        <th style="width: 32%;">Key</th>
+                        <th style="width: 50%;">Value</th>
+                        <th style="width: 12%;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p class="section-empty">No fragment parameters</p>
+        </section>
 
         <div class="output-group hidden" id="outputGroup">
             <div class="output-content">
                 <label>Updated URL:</label>
                 <div class="output-url" id="outputUrl"></div>
             </div>
-            <button class="btn-copy" id="copyBtn">Copy</button>
+            <button class="btn-copy" id="copyBtn" title="Copy" aria-label="Copy">
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <svg class="icon-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                <svg class="icon-failed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
         </div>
     </div>
 
     <script>
-        const urlInput = document.getElementById('urlInput');
-        const paramsBody = document.getElementById('paramsBody');
-        const paramsTable = document.getElementById('paramsTable');
-        const emptyState = document.getElementById('emptyState');
-        const outputUrl = document.getElementById('outputUrl');
-        const outputGroup = document.getElementById('outputGroup');
-        const baseUrlInput = document.getElementById('baseUrlInput');
-        const addParamBtn = document.getElementById('addParam');
-        const copyBtn = document.getElementById('copyBtn');
+        const $ = id => document.getElementById(id);
+        const urlInput = $('urlInput');
+        const baseUrlInput = $('baseUrlInput');
+        const fragmentPrefixInput = $('fragmentPrefixInput');
+        const outputUrl = $('outputUrl');
+        const outputGroup = $('outputGroup');
+        const copyBtn = $('copyBtn');
+        const urlError = $('urlError');
+        const baseUrlError = $('baseUrlError');
 
-        let params = [];
+        const sections = {
+            query: { el: $('querySection'), params: [] },
+            hash: { el: $('hashSection'), params: [] },
+        };
+        let fragmentUsesQuestionMark = false;
+        let keepEmptyQueryMarker = false;
         let currentUrl = '';
+        let copyResetTimer = null;
 
-        urlInput.addEventListener('input', parseUrl);
-        baseUrlInput.addEventListener('input', updateOutput);
-        addParamBtn.addEventListener('click', () => addParam('', ''));
+        urlInput.addEventListener('input', () => parseUrl());
+        baseUrlInput.addEventListener('input', () => updateOutput());
+        fragmentPrefixInput.addEventListener('input', () => updateOutput());
         copyBtn.addEventListener('click', copyToClipboard);
+        for (const name of Object.keys(sections)) {
+            sections[name].el.querySelector('.btn-add').addEventListener('click', () => addParam(name));
+        }
+
+        function decodeComponent(text) {
+            try {
+                return decodeURIComponent(text.replace(/\+/g, ' '));
+            } catch (e) {
+                return text;
+            }
+        }
+
+        function parseQuery(search) {
+            const query = search.startsWith('?') ? search.slice(1) : search;
+            if (!query) return [];
+
+            return query.split('&').filter(part => part !== '').map(part => {
+                const eq = part.indexOf('=');
+                const rawKey = eq === -1 ? part : part.slice(0, eq);
+                const rawValue = eq === -1 ? '' : part.slice(eq + 1);
+                return {
+                    key: decodeComponent(rawKey),
+                    value: decodeComponent(rawValue),
+                    rawKey,
+                    rawValue,
+                    hasEq: eq !== -1,
+                };
+            });
+        }
+
+        function splitFragment(fragment) {
+            const q = fragment.indexOf('?');
+            if (q !== -1) {
+                return { prefix: fragment.slice(0, q), params: fragment.slice(q + 1), usesQuestionMark: true };
+            }
+            if (fragment.includes('=')) {
+                return { prefix: '', params: fragment, usesQuestionMark: false };
+            }
+            return { prefix: fragment, params: '', usesQuestionMark: false };
+        }
+
+        function serializeParam(p) {
+            const k = p.rawKey !== null ? p.rawKey : encodeURIComponent(p.key);
+            if (p.rawValue !== null && !p.hasEq) return k;
+            const v = p.rawValue !== null ? p.rawValue : encodeURIComponent(p.value);
+            return `${k}=${v}`;
+        }
+
+        function isBlankNewParam(p) {
+            return p.rawKey === null && p.key === '' && p.value === '';
+        }
+
+        function serializeParams(params) {
+            return params.filter(p => !p.disabled && !isBlankNewParam(p)).map(serializeParam).join('&');
+        }
+
+        function keepDisabled(oldParams, newParams) {
+            oldParams.forEach((p, i) => {
+                if (p.disabled) newParams.splice(Math.min(i, newParams.length), 0, p);
+            });
+            return newParams;
+        }
 
         function parseUrl() {
             const input = urlInput.value.trim();
 
             if (!input) {
-                params = [];
+                urlError.textContent = '';
+                sections.query.params = [];
+                sections.hash.params = [];
                 baseUrlInput.value = '';
-                render();
+                fragmentPrefixInput.value = '';
+                render({ sync: false });
                 return;
             }
 
+            let url;
             try {
-                const url = new URL(input);
-                baseUrlInput.value = `${url.origin}${url.pathname}`;
-
-                params = [];
-                for (const [key, value] of url.searchParams) {
-                    params.push({ key, value });
-                }
-
-                render();
+                url = new URL(input);
             } catch (e) {
-                // Invalid URL, ignore
+                urlError.textContent = 'Not a valid absolute URL. Include the scheme, e.g. https://';
+                return;
             }
+
+            urlError.textContent = '';
+            const fragment = splitFragment(url.hash.slice(1));
+            const queryParams = parseQuery(url.search);
+            const hashParams = parseQuery(fragment.params);
+
+            url.hash = '';
+            keepEmptyQueryMarker = url.search === '' && url.href.endsWith('?');
+            url.search = '';
+
+            const sameBase = url.href === baseUrlInput.value.trim();
+            sections.query.params = sameBase ? keepDisabled(sections.query.params, queryParams) : queryParams;
+            sections.hash.params = sameBase ? keepDisabled(sections.hash.params, hashParams) : hashParams;
+            fragmentUsesQuestionMark = fragment.usesQuestionMark;
+
+            baseUrlInput.value = url.href;
+            fragmentPrefixInput.value = fragment.prefix;
+            render({ sync: false });
         }
 
-        function addParam(key = '', value = '') {
-            params.push({ key, value });
-            render();
+        function addParam(name) {
+            const section = sections[name];
+            section.params.push({ key: '', value: '', rawKey: null, rawValue: null, hasEq: true });
+            renderSection(name);
+            updateOutput();
+            const keys = section.el.querySelectorAll('input[data-field="key"]');
+            keys[keys.length - 1].focus();
         }
 
-        function removeParam(index) {
-            params.splice(index, 1);
-            render();
+        function removeParam(name, index) {
+            const section = sections[name];
+            section.params.splice(index, 1);
+            renderSection(name);
+            updateOutput();
+            const buttons = section.el.querySelectorAll('.btn-remove');
+            (buttons[Math.min(index, buttons.length - 1)] || section.el.querySelector('.btn-add')).focus();
         }
 
-        function updateParam(index, field, value) {
-            params[index][field] = value;
+        function updateParam(param, field, value) {
+            param[field] = value;
+            if (field === 'key') {
+                param.rawKey = null;
+            } else {
+                param.rawValue = null;
+                param.hasEq = true;
+            }
             updateOutput();
         }
 
-        function render() {
-            if (params.length === 0) {
-                paramsTable.style.display = 'none';
-                emptyState.style.display = 'block';
-            } else {
-                paramsTable.style.display = 'table';
-                emptyState.style.display = 'none';
-            }
+        function createInput(param, field) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = param[field];
+            input.placeholder = field;
+            input.dataset.field = field;
+            input.addEventListener('input', () => updateParam(param, field, input.value));
+            return input;
+        }
 
-            paramsBody.innerHTML = '';
+        function renderSection(name) {
+            const { el, params } = sections[name];
+            const table = el.querySelector('table');
+            const body = table.tBodies[0];
+            table.hidden = params.length === 0;
+            el.querySelector('.section-empty').hidden = params.length > 0;
+
+            body.replaceChildren();
 
             params.forEach((param, index) => {
                 const row = document.createElement('tr');
+                row.classList.toggle('disabled', !!param.disabled);
 
-                row.innerHTML = `
-                    <td>
-                        <input type="text"
-                               value="${escapeHtml(param.key)}"
-                               placeholder="key"
-                               data-index="${index}"
-                               data-field="key">
-                    </td>
-                    <td>
-                        <input type="text"
-                               value="${escapeHtml(param.value)}"
-                               placeholder="value"
-                               data-index="${index}"
-                               data-field="value">
-                    </td>
-                    <td>
-                        <button class="btn-remove" data-index="${index}">×</button>
-                    </td>
-                `;
-
-                paramsBody.appendChild(row);
-            });
-
-            // Add event listeners
-            paramsBody.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', (e) => {
-                    const index = parseInt(e.target.dataset.index);
-                    const field = e.target.dataset.field;
-                    updateParam(index, field, e.target.value);
+                const toggleCell = document.createElement('td');
+                const toggle = document.createElement('input');
+                toggle.type = 'checkbox';
+                toggle.className = 'param-toggle';
+                toggle.checked = !param.disabled;
+                toggle.title = 'Include in URL';
+                toggle.setAttribute('aria-label', 'Include in URL');
+                toggle.addEventListener('change', () => {
+                    param.disabled = !toggle.checked;
+                    row.classList.toggle('disabled', param.disabled);
+                    updateOutput();
                 });
-            });
+                toggleCell.appendChild(toggle);
 
-            paramsBody.querySelectorAll('.btn-remove').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const index = parseInt(e.target.dataset.index);
-                    removeParam(index);
-                });
-            });
+                const keyCell = document.createElement('td');
+                keyCell.appendChild(createInput(param, 'key'));
 
-            updateOutput();
+                const valueCell = document.createElement('td');
+                valueCell.appendChild(createInput(param, 'value'));
+
+                const actionCell = document.createElement('td');
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'btn-remove';
+                removeBtn.textContent = '×';
+                removeBtn.setAttribute('aria-label', 'Remove parameter');
+                removeBtn.addEventListener('click', () => removeParam(name, index));
+                actionCell.appendChild(removeBtn);
+
+                row.append(toggleCell, keyCell, valueCell, actionCell);
+                body.appendChild(row);
+            });
         }
 
-        function updateOutput() {
+        function render({ sync = true } = {}) {
+            renderSection('query');
+            renderSection('hash');
+            updateOutput({ sync });
+        }
+
+        function showOutputUnavailable(message) {
+            baseUrlError.textContent = message;
+            outputGroup.classList.add('hidden');
+            currentUrl = '';
+            urlError.textContent = urlInput.value.trim()
+                ? 'Out of date until the Base URL below is fixed.'
+                : '';
+        }
+
+        function updateOutput({ sync = true } = {}) {
             const baseUrl = baseUrlInput.value.trim();
 
             if (!baseUrl) {
-                outputGroup.classList.add('hidden');
-                currentUrl = '';
+                showOutputUnavailable('');
                 return;
             }
 
+            let url;
             try {
-                const url = new URL(baseUrl);
-
-                params.forEach(param => {
-                    if (param.key) {
-                        url.searchParams.append(param.key, param.value);
-                    }
-                });
-
-                currentUrl = url.toString();
-                outputUrl.innerHTML = `<a href="${escapeHtml(currentUrl)}" target="_blank">${escapeHtml(currentUrl)}</a>`;
-                outputGroup.classList.remove('hidden');
+                url = new URL(baseUrl);
             } catch (e) {
-                outputGroup.classList.add('hidden');
-                currentUrl = '';
+                showOutputUnavailable('Not a valid absolute URL.');
+                return;
             }
+            if (/[?#]/.test(baseUrl)) {
+                showOutputUnavailable('Leave out ? and # here. Use the parameter sections below.');
+                return;
+            }
+            baseUrlError.textContent = '';
+
+            const query = serializeParams(sections.query.params);
+            const hashQuery = serializeParams(sections.hash.params);
+            const prefix = fragmentPrefixInput.value.replace(/^#/, '');
+
+            let result = url.href;
+            if (query) result += '?' + query;
+            else if (keepEmptyQueryMarker) result += '?';
+
+            if (hashQuery) {
+                result += '#' + prefix + (prefix || fragmentUsesQuestionMark ? '?' : '') + hashQuery;
+            } else if (prefix) {
+                result += '#' + prefix;
+            }
+            currentUrl = result;
+
+            outputUrl.replaceChildren();
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+                const link = document.createElement('a');
+                link.href = currentUrl;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = currentUrl;
+                outputUrl.appendChild(link);
+            } else {
+                outputUrl.textContent = currentUrl;
+            }
+            outputGroup.classList.remove('hidden');
+
+            if (sync) {
+                urlInput.value = currentUrl;
+            }
+            urlError.textContent = '';
+        }
+
+        function setCopyState(className, text) {
+            clearTimeout(copyResetTimer);
+            copyBtn.classList.remove('copied', 'failed');
+            if (className) copyBtn.classList.add(className);
+            copyBtn.title = text;
+            copyBtn.setAttribute('aria-label', text);
+        }
+
+        function flashCopyButton(text, className) {
+            setCopyState(className, text);
+            copyResetTimer = setTimeout(() => setCopyState(null, 'Copy'), 2000);
         }
 
         async function copyToClipboard() {
@@ -369,22 +637,11 @@
 
             try {
                 await navigator.clipboard.writeText(currentUrl);
-                copyBtn.textContent = 'Copied!';
-                copyBtn.classList.add('copied');
-
-                setTimeout(() => {
-                    copyBtn.textContent = 'Copy';
-                    copyBtn.classList.remove('copied');
-                }, 2000);
+                flashCopyButton('Copied!', 'copied');
             } catch (e) {
                 console.error('Failed to copy:', e);
+                flashCopyButton('Copy failed', 'failed');
             }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
         // Initialize
