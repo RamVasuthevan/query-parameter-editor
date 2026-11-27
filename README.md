@@ -7,3 +7,5 @@ A single-page tool for editing a URL's query parameters as a table. Open `index.
 3. Copy the result.
 
 Parameters you don't touch are kept byte-for-byte as they were in the original URL, including their order, duplicates, valueless keys like `?flag` and existing encoding. A parameter you edit is re-encoded with `encodeURIComponent`. In the editor, `+` is shown as a space.
+
+If a URL has no `?query` but its `#fragment` contains `=` (as single-page apps often use, e.g. `#company=Affirm&location=Toronto` or `#/jobs?company=Affirm`), the fragment's parameters are edited instead. Toggle "Parameters are in the #fragment" to switch manually.

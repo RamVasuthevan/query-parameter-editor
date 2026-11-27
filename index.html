@@ -193,6 +193,16 @@
         .btn-copy.failed {
             background: #dc3545;
         }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 8px 0 0;
+            font-weight: normal;
+            font-size: 13px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -209,6 +219,10 @@
             <label for="baseUrlInput">Base URL:</label>
             <input type="text" id="baseUrlInput" placeholder="http://example.com/api/search">
             <div class="error" id="baseUrlError"></div>
+            <label class="checkbox-label">
+                <input type="checkbox" id="hashMode">
+                Parameters are in the #fragment
+            </label>
         </div>
 
         <button class="btn-add" id="addParam">+ Add Parameter</button>
@@ -254,7 +268,10 @@
         let params = [];
         let currentUrl = '';
 
-        urlInput.addEventListener('input', parseUrl);
+        const hashModeInput = document.getElementById('hashMode');
+
+        urlInput.addEventListener('input', () => parseUrl());
+        hashModeInput.addEventListener('change', () => parseUrl({ forceHash: hashModeInput.checked }));
         baseUrlInput.addEventListener('input', () => updateOutput());
         addParamBtn.addEventListener('click', () => {
             addParam();
@@ -300,7 +317,7 @@
             return p.rawKey === null && p.key === '' && p.value === '';
         }
 
-        function parseUrl() {
+        function parseUrl({ forceHash } = {}) {
             const input = urlInput.value.trim();
 
             if (!input) {
@@ -320,8 +337,20 @@
             }
 
             urlError.textContent = '';
-            params = parseQuery(url.search);
-            url.search = '';
+            const fragment = url.hash.slice(1);
+            const inHash = forceHash !== undefined
+                ? forceHash
+                : url.search === '' && fragment.includes('=');
+            hashModeInput.checked = inHash;
+
+            if (inHash) {
+                const q = fragment.indexOf('?');
+                params = parseQuery(q === -1 ? fragment : fragment.slice(q + 1));
+                url.hash = q === -1 ? '' : fragment.slice(0, q + 1);
+            } else {
+                params = parseQuery(url.search);
+                url.search = '';
+            }
             baseUrlInput.value = url.href;
             render({ sync: false });
         }
@@ -426,8 +455,22 @@
             if (url.search === '' && base.endsWith('?')) base = base.slice(0, -1);
 
             const query = params.filter(p => !isBlankNewParam(p)).map(serializeParam).join('&');
-            const joiner = url.search ? '&' : '?';
-            currentUrl = base + (query ? joiner + query : '') + hash;
+
+            if (hashModeInput.checked) {
+                const fragment = hash.slice(1);
+                if (!query) {
+                    const trimmed = fragment.replace(/\?$/, '');
+                    currentUrl = base + (trimmed ? '#' + trimmed : '');
+                } else {
+                    let joiner = '?';
+                    if (fragment === '' || /[?&]$/.test(fragment)) joiner = '';
+                    else if (/[?=]/.test(fragment)) joiner = '&';
+                    currentUrl = base + '#' + fragment + joiner + query;
+                }
+            } else {
+                const joiner = url.search ? '&' : '?';
+                currentUrl = base + (query ? joiner + query : '') + hash;
+            }
 
             outputUrl.replaceChildren();
             if (url.protocol === 'http:' || url.protocol === 'https:') {
